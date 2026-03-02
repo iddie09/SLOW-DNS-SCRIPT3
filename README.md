@@ -1,0 +1,2 @@
+# SLOW-DNS-SCRIPT3
+Fast dns2
