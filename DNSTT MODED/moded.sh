@@ -722,8 +722,8 @@ EOF
     echo -e "${GREEN}${BOLD}║${NC}    ${WHITE}🔧 Ready for DNS tunneling${NC}                         ${GREEN}${BOLD}║${NC}"
     echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
     
-    echo -e "\n${YELLOW}${BOLD}📞 Need help? Contact support: @esimfreegb${NC}"
-    echo -e "${YELLOW}${BOLD}💡 Documentation: https://github.com/chiddy80/Halotel-Slow-DNS${NC}"
+    echo -e "\n${YELLOW}${BOLD}📞 Need help? Contact support: @inc🦜 whatsap 0689000656${NC}"
+    echo -e "${YELLOW}${BOLD}💡 Documentation: https://raw.githubusercontent.com/iddie09/SLOW-DNS-SCRIPT3${NC}"
     
     echo -e "\n${WHITE}${BOLD}Press Enter to return to terminal...${NC}"
     read -r
@@ -812,6 +812,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
