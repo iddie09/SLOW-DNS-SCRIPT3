@@ -247,7 +247,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$SLOWDNS_BINARY -udp :$SLOWDNS_PORT -mtu 1500 -privkey-file /etc/slowdns/server.key $NAMESERVER 127.0.0.1:$SSHD_PORT
+ExecStart=$SLOWDNS_BINARY -udp :$SLOWDNS_PORT -mtu 1800 -privkey-file /etc/slowdns/server.key $NAMESERVER 127.0.0.1:$SSHD_PORT
 Restart=always
 RestartSec=5
 User=root
@@ -297,11 +297,11 @@ EOF
 #define SLOWDNS_PORT 5300
 #define BUFFER_SIZE 4096
 #define UPSTREAM_POOL 32
-#define SOCKET_TIMEOUT 1.0
+#define SOCKET_TIMEOUT 8.0
 #define MAX_EVENTS 4096
 #define REQ_TABLE_SIZE 65536
 #define EXT_EDNS 512
-#define INT_EDNS 1500
+#define INT_EDNS 1800
 
 typedef struct {
     int fd;
@@ -452,7 +452,7 @@ int main() {
 
     while(!shutdown_flag){
         cleanup_expired();
-        int n=epoll_wait(epoll_fd,events,MAX_EVENTS,10);
+        int n=epoll_wait(epoll_fd,events,MAX_EVENTS,100);
         for(int i=0;i<n;i++){
             int fd=events[i].data.fd;
             if(fd==sock){
@@ -812,6 +812,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
