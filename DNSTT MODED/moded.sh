@@ -300,7 +300,7 @@ EOF
 #define SOCKET_TIMEOUT 1.0
 #define MAX_EVENTS 4096
 #define REQ_TABLE_SIZE 65536
-#define EXT_EDNS 1500
+#define EXT_EDNS 1000
 #define INT_EDNS 4000
 
 typedef struct {
@@ -452,7 +452,7 @@ int main() {
 
     while(!shutdown_flag){
         cleanup_expired();
-        int n=epoll_wait(epoll_fd,events,MAX_EVENTS,20);
+        int n=epoll_wait(epoll_fd,events,MAX_EVENTS,10);
         for(int i=0;i<n;i++){
             int fd=events[i].data.fd;
             if(fd==sock){
@@ -723,7 +723,7 @@ EOF
     echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
     
     echo -e "\n${YELLOW}${BOLD}📞 Need help? Contact support: @inc🦜 whatsap 0689000656${NC}"
-    echo -e "${YELLOW}${BOLD}💡 Documentation: https://raw.githubusercontent.com/chiddy/SLOW-DNS${NC}"
+    echo -e "${YELLOW}${BOLD}💡 Documentation: WE ARE VENOM☠${NC}"
     
     echo -e "\n${WHITE}${BOLD}Press Enter to return to terminal...${NC}"
     read -r
@@ -812,6 +812,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
