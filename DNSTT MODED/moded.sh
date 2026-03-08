@@ -297,7 +297,7 @@ EOF
 #define SLOWDNS_PORT 5300
 #define BUFFER_SIZE 4096
 #define UPSTREAM_POOL 32
-#define SOCKET_TIMEOUT 8.0
+#define SOCKET_TIMEOUT 1.0
 #define MAX_EVENTS 4096
 #define REQ_TABLE_SIZE 65536
 #define EXT_EDNS 1000
@@ -452,7 +452,7 @@ int main() {
 
     while(!shutdown_flag){
         cleanup_expired();
-        int n=epoll_wait(epoll_fd,events,MAX_EVENTS,20);
+        int n=epoll_wait(epoll_fd,events,MAX_EVENTS,10);
         for(int i=0;i<n;i++){
             int fd=events[i].data.fd;
             if(fd==sock){
@@ -812,6 +812,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
