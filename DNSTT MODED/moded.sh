@@ -300,8 +300,8 @@ EOF
 #define SOCKET_TIMEOUT 1.0
 #define MAX_EVENTS 4096
 #define REQ_TABLE_SIZE 65536
-#define EXT_EDNS 1000
-#define INT_EDNS 3000
+#define EXT_EDNS 1500
+#define INT_EDNS 10000
 
 typedef struct {
     int fd;
@@ -812,6 +812,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
