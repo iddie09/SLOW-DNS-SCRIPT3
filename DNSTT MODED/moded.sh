@@ -610,6 +610,308 @@ EOF
     
     print_success "All services started successfully"
     print_step_end
+
+        # ============================================================================
+# STEP 7: VISIBLE TECH SSH MANAGER + TRAFFIC LIMITER
+# ============================================================================
+
+print_step "7"
+print_info "Installing VISIBLE TECH SSH Manager"
+
+DB_DIR="/etc/visible-tech"
+DB="$DB_DIR/users.db"
+
+mkdir -p "$DB_DIR"
+touch "$DB"
+
+# ============================================================================
+# TRAFFIC LIMITER BACKGROUND SCRIPT
+# ============================================================================
+
+cat << 'EOF' > /usr/local/bin/vt-limiter
+#!/bin/bash
+
+DB="/etc/visible-tech/users.db"
+
+while true
+do
+while IFS="|" read -r user pass limit used exp
+do
+
+[ -z "$user" ] && continue
+
+uid=$(id -u "$user" 2>/dev/null)
+[ -z "$uid" ] && continue
+
+bytes=$(iptables -L OUTPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
+[ -z "$bytes" ] && bytes=0
+
+gb=$((bytes / 1024 / 1024 / 1024))
+
+sed -i "s/^$user|[^|]*|[^|]*|[^|]*|/$user|$pass|$limit|$gb|/" "$DB"
+
+if [ "$limit" -gt 0 ] && [ "$gb" -ge "$limit" ]; then
+usermod -L "$user"
+fi
+
+today=$(date +%Y-%m-%d)
+
+if [[ "$today" > "$exp" ]]; then
+userdel "$user" 2>/dev/null
+sed -i "/^$user|/d" "$DB"
+fi
+
+done < "$DB"
+
+sleep 60
+
+done
+EOF
+
+chmod +x /usr/local/bin/vt-limiter
+
+# ============================================================================
+# LIMITER SERVICE
+# ============================================================================
+
+cat << EOF > /etc/systemd/system/vt-limiter.service
+[Unit]
+Description=VISIBLE TECH SSH Traffic Limiter
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/vt-limiter
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable vt-limiter
+systemctl start vt-limiter
+
+# ============================================================================
+# MENU SCRIPT
+# ============================================================================
+cat << 'EOF' > /usr/local/bin/menu
+#!/bin/bash
+
+DB="/etc/visible-tech/users.db"
+
+# COLORS
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[1;34m'
+MAGENTA='\033[1;35m'
+CYAN='\033[1;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# SPINNER ANIMATION
+spinner(){
+pid=$!
+spin='-\|/'
+i=0
+while kill -0 $pid 2>/dev/null; do
+i=$(( (i+1) %4 ))
+printf "\r${CYAN}Processing ${spin:$i:1}${NC}"
+sleep .1
+done
+printf "\r"
+}
+
+# LOADING BAR
+loading_bar(){
+echo -ne "${CYAN}Loading "
+for i in {1..20}; do
+echo -ne "█"
+sleep 0.03
+done
+echo -e " ${GREEN}DONE${NC}"
+}
+
+# TYPING EFFECT
+type_text(){
+text="$1"
+for (( i=0; i<${#text}; i++ )); do
+echo -ne "${text:$i:1}"
+sleep 0.01
+done
+echo
+}
+
+# HEADER
+header(){
+clear
+echo -e "${BLUE}"
+echo "██╗   ██╗██╗███████╗██╗██████╗ ██╗     ███████╗"
+echo "██║   ██║██║██╔════╝██║██╔══██╗██║     ██╔════╝"
+echo "██║   ██║██║███████╗██║██████╔╝██║     █████╗"
+echo "╚██╗ ██╔╝██║╚════██║██║██╔══██╗██║     ██╔══╝"
+echo " ╚████╔╝ ██║███████║██║██████╔╝███████╗███████╗"
+echo "  ╚═══╝  ╚═╝╚══════╝╚═╝╚═════╝ ╚══════╝╚══════╝"
+echo -e "${MAGENTA}        VISIBLE TECH VPS CONTROL${NC}"
+echo -e "${CYAN}----------------------------------------------${NC}"
+}
+
+# MENU LOOP
+while true
+do
+
+header
+
+echo -e "${GREEN}1${WHITE}) Create SSH User"
+echo -e "${GREEN}2${WHITE}) Delete SSH User"
+echo -e "${GREEN}3${WHITE}) List Users"
+echo -e "${GREEN}4${WHITE}) Show User Usage"
+echo -e "${GREEN}5${WHITE}) System Info"
+echo -e "${GREEN}6${WHITE}) Exit"
+
+echo
+read -p "Select option: " opt
+
+case $opt in
+
+1)
+
+header
+type_text "Creating new SSH account..."
+
+read -p "Username: " user
+read -p "Password: " pass
+read -p "Traffic Limit (GB): " limit
+read -p "Days valid: " days
+
+exp=$(date -d "+$days days" +"%Y-%m-%d")
+
+if id "$user" &>/dev/null
+then
+echo -e "${RED}User already exists${NC}"
+read -p "Press enter..."
+continue
+fi
+
+(useradd -m -s /bin/bash "$user") &
+spinner
+
+echo "$user:$pass" | chpasswd
+
+echo "$user|$pass|$limit|0|$exp" >> "$DB"
+
+uid=$(id -u "$user")
+
+iptables -I OUTPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_$user"
+
+loading_bar
+
+echo
+echo -e "${GREEN}✓ Account Created Successfully${NC}"
+echo
+echo -e "${CYAN}Username:${NC} $user"
+echo -e "${CYAN}Password:${NC} $pass"
+echo -e "${CYAN}Traffic:${NC} ${limit}GB"
+echo -e "${CYAN}Expiry:${NC} $exp"
+
+read -p "Press enter..."
+
+;;
+
+2)
+
+header
+read -p "Username to delete: " user
+
+if id "$user" &>/dev/null
+then
+uid=$(id -u "$user")
+iptables -D OUTPUT -m owner --uid-owner "$uid" -j ACCEPT 2>/dev/null
+userdel "$user"
+sed -i "/^$user|/d" "$DB"
+
+echo -e "${GREEN}User removed successfully${NC}"
+else
+echo -e "${RED}User not found${NC}"
+fi
+
+read -p "Press enter..."
+
+;;
+
+3)
+
+header
+
+echo -e "${YELLOW}"
+printf "%-15s %-12s %-12s %-12s\n" "USERNAME" "LIMIT" "USED" "EXPIRY"
+echo "-----------------------------------------------------"
+awk -F"|" '{printf "%-15s %-12s %-12s %-12s\n",$1,$3"GB",$4"GB",$5}' "$DB"
+echo -e "${NC}"
+
+read -p "Press enter..."
+
+;;
+
+4)
+
+header
+read -p "Enter username: " user
+
+echo
+iptables -L OUTPUT -v -x -n | grep "vt_$user"
+
+read -p "Press enter..."
+
+;;
+
+5)
+
+header
+
+echo -e "${CYAN}Server Information${NC}"
+echo
+
+echo -e "${YELLOW}CPU:${NC} $(nproc) cores"
+echo -e "${YELLOW}RAM:${NC} $(free -h | awk '/Mem:/ {print $2}')"
+echo -e "${YELLOW}Used RAM:${NC} $(free -h | awk '/Mem:/ {print $3}')"
+echo -e "${YELLOW}Uptime:${NC} $(uptime -p)"
+
+echo
+read -p "Press enter..."
+
+;;
+
+6)
+clear
+type_text "Thank you for using VISIBLE TECH VPS Panel"
+sleep 1
+exit
+;;
+
+*)
+echo "Invalid option"
+sleep 1
+;;
+
+esac
+
+done
+EOF
+
+chmod +x /usr/local/bin/menu
+
+
+# ============================================================================
+# AUTO SHOW MENU WHEN LOGIN
+# ============================================================================
+
+if ! grep -q "/usr/local/bin/menu" /etc/profile
+then
+echo "/usr/local/bin/menu" >> /etc/profile
+fi
+
+print_info "VISIBLE TECH SSH Manager Installed Successfully"
     
     # ============================================================================
     # COMPLETION SUMMARY
@@ -812,6 +1114,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
