@@ -847,8 +847,6 @@ echo "$user|$pass|$limit|0|$exp" >> "$DB"
 uid=$(id -u "$user")
 
 iptables -I OUTPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_$user"
-iptables -I INPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_$user"
-loading_bar
 
 echo
 echo -e "${GREEN}✓ Account Created Successfully${NC}"
@@ -1168,6 +1166,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
