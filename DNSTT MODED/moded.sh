@@ -612,8 +612,8 @@ EOF
     print_step_end
 
         # ============================================================================
-# STEP 7: VISIBLE TECH SSH MANAGER + TRAFFIC LIMITER
-# ============================================================================
+        # STEP 7: VISIBLE TECH SSH MANAGER + TRAFFIC LIMITER
+        # ============================================================================
 
 print_step "7"
 print_info "Installing VISIBLE TECH SSH Manager"
@@ -631,10 +631,13 @@ touch "$DB"
 cat << 'EOF' > /usr/local/bin/vt-limiter
 #!/bin/bash
 
+#!/bin/bash
+
 DB="/etc/visible-tech/users.db"
 
 while true
 do
+
 while IFS="|" read -r user pass limit used exp
 do
 
@@ -643,27 +646,43 @@ do
 uid=$(id -u "$user" 2>/dev/null)
 [ -z "$uid" ] && continue
 
-bytes=$(iptables -L OUTPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
-[ -z "$bytes" ] && bytes=0
+# OUTPUT traffic
+out=$(iptables -L OUTPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
 
-gb=$((bytes / 1024 / 1024 / 1024))
+# INPUT traffic
+in=$(iptables -L INPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
 
+[ -z "$out" ] && out=0
+[ -z "$in" ] && in=0
+
+bytes=$((out + in))
+
+# Convert to GB with decimals
+gb=$(awk "BEGIN {printf \"%.2f\", $bytes/1024/1024/1024}")
+
+# Update database
 sed -i "s/^$user|[^|]*|[^|]*|[^|]*|/$user|$pass|$limit|$gb|/" "$DB"
 
-if [ "$limit" -gt 0 ] && [ "$gb" -ge "$limit" ]; then
+# Suspend if limit reached
+check=$(awk "BEGIN {print ($gb >= $limit)}")
+
+if [ "$check" -eq 1 ]
+then
 usermod -L "$user"
 fi
 
+# Expiry check
 today=$(date +%Y-%m-%d)
 
-if [[ "$today" > "$exp" ]]; then
+if [[ "$today" > "$exp" ]]
+then
 userdel "$user" 2>/dev/null
 sed -i "/^$user|/d" "$DB"
 fi
 
 done < "$DB"
 
-sleep 60
+sleep 5
 
 done
 EOF
@@ -779,10 +798,38 @@ case $opt in
 header
 type_text "Creating new SSH account..."
 
+# Read username and password as usual
 read -p "Username: " user
 read -p "Password: " pass
-read -p "Traffic Limit (GB): " limit
-read -p "Days valid: " days
+
+# Read traffic limit with decimal support (max 2 decimal places)
+while true; do
+    read -p "Traffic Limit (GB, e.g., 1.25): " limit
+    # Validate: integer or decimal with up to 2 decimal places
+    if [[ $limit =~ ^[0-9]+(\.[0-9]{1,2})?$ ]]; then
+        # Optional: round/format to 2 decimal places
+        limit=$(printf "%.2f" "$limit")
+        break
+    else
+        echo "Error: Enter a valid number (up to 2 decimal places)."
+    fi
+done
+
+# Read days valid as integer
+while true; do
+    read -p "Days valid: " days
+    if [[ $days =~ ^[0-9]+$ ]]; then
+        break
+    else
+        echo "Error: Enter a valid integer for days."
+    fi
+done
+
+# Show inputs (for debug)
+echo "Username: $user"
+echo "Password: $pass"
+echo "Traffic Limit: $limit GB"
+echo "Valid for: $days days"
 
 exp=$(date -d "+$days days" +"%Y-%m-%d")
 
@@ -1114,6 +1161,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
