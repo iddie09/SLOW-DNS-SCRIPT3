@@ -646,16 +646,21 @@ do
 uid=$(id -u "$user" 2>/dev/null)
 [ -z "$uid" ] && continue
 
-# traffic calculator
-out=$(iptables -L OUTPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
-in=$(iptables -L INPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
+# Read traffic per user in bytes
+out=$(iptables -L OUTPUT -v -x -n | grep "vt_${user}_OUT" | awk '{print $2}' | head -n1)
+in=$(iptables -L INPUT -v -x -n | grep "vt_${user}_IN" | awk '{print $2}' | head -n1)
 
+# Default to 0 if empty
 [ -z "$out" ] && out=0
 [ -z "$in" ] && in=0
 
-bytes=$((out + in))
+# Total bytes
+total_bytes=$((out + in))
 
-gb=$(awk "BEGIN {printf \"%.2f\", $bytes/1024/1024/1024}")
+# Convert to GB with 2 decimal points
+down=$(awk "BEGIN {printf \"%.2f\", $out/1024/1024/1024}")
+up=$(awk "BEGIN {printf \"%.2f\", $in/1024/1024/1024}")
+total=$(awk "BEGIN {printf \"%.2f\", $total_bytes/1024/1024/1024}")
 
 # Update database
 sed -i "s/^$user|[^|]*|[^|]*|[^|]*|/$user|$pass|$limit|$gb|/" "$DB"
@@ -679,7 +684,7 @@ fi
 
 done < "$DB"
 
-sleep 5
+sleep 1
 
 done
 EOF
@@ -782,6 +787,7 @@ echo -e "${GREEN}1${WHITE}) Create SSH User"
 echo -e "${GREEN}2${WHITE}) Delete SSH User"
 echo -e "${GREEN}3${WHITE}) List Users"
 echo -e "${GREEN}4${WHITE}) Show User Usage"
+echo -e "${GREEN}4${WHITE}) Live Traffic Monitor"
 echo -e "${GREEN}5${WHITE}) System Info"
 echo -e "${GREEN}6${WHITE}) Exit"
 
@@ -846,8 +852,8 @@ echo "$user|$pass|$limit|0|$exp" >> "$DB"
 
 uid=$(id -u "$user")
 
-iptables -I OUTPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_$user"
-
+iptables -I OUTPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_${user}_OUT"
+iptables -I INPUT  -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_${user}_IN"
 echo
 echo -e "${GREEN}✓ Account Created Successfully${NC}"
 echo
@@ -918,6 +924,49 @@ read -p "Press enter..."
 ;;
 
 5)
+echo "Press CTRL+C to stop monitoring"
+sleep 1
+
+while true
+do
+    clear
+    echo "VISIBLE TECH VPS CONTROL"
+    echo "---------------------------------"
+    printf "%-15s %-10s %-10s %-10s\n" "USER" "DOWN" "UP" "TOTAL"
+    echo "------------------------------------------------"
+
+    # Read user database (replace $DB with your actual DB path)
+    while IFS="|" read -r user pass limit used exp
+    do
+        # Per-user traffic
+        out=$(iptables -L OUTPUT -v -x -n | grep "vt_${user}_OUT" | awk '{print $2}' | head -n1)
+        in=$(iptables -L INPUT -v -x -n | grep "vt_${user}_IN" | awk '{print $2}' | head -n1)
+
+        [ -z "$out" ] && out=0
+        [ -z "$in" ] && in=0
+
+        total_bytes=$((out + in))
+
+        down=$(awk "BEGIN {printf \"%.2f\", $out/1024/1024/1024}")
+        up=$(awk "BEGIN {printf \"%.2f\", $in/1024/1024/1024}")
+        total=$(awk "BEGIN {printf \"%.2f\", $total_bytes/1024/1024/1024}")
+
+        printf "%-15s %-10s %-10s %-10s\n" "$user" "$down GB" "$up GB" "$total GB"
+
+        # Auto suspend if over limit
+        limit_bytes=$(awk "BEGIN {printf \"%d\", $limit*1024*1024*1024}")
+        if [ "$total_bytes" -ge "$limit_bytes" ]; then
+            passwd -l "$user" >/dev/null 2>&1
+            echo "$user has reached traffic limit and is suspended!"
+        fi
+
+    done < "$DB"
+
+    sleep 2
+done
+;;
+
+6)
 
 header
 
@@ -934,7 +983,8 @@ read -p "Press enter..."
 
 ;;
 
-6)
+
+7)
 clear
 type_text "Thank you for using VISIBLE TECH VPS Panel"
 sleep 1
@@ -1166,6 +1216,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
