@@ -646,10 +646,8 @@ do
 uid=$(id -u "$user" 2>/dev/null)
 [ -z "$uid" ] && continue
 
-# OUTPUT traffic
+# traffic calculator
 out=$(iptables -L OUTPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
-
-# INPUT traffic
 in=$(iptables -L INPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
 
 [ -z "$out" ] && out=0
@@ -657,7 +655,6 @@ in=$(iptables -L INPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
 
 bytes=$((out + in))
 
-# Convert to GB with decimals
 gb=$(awk "BEGIN {printf \"%.2f\", $bytes/1024/1024/1024}")
 
 # Update database
@@ -666,9 +663,9 @@ sed -i "s/^$user|[^|]*|[^|]*|[^|]*|/$user|$pass|$limit|$gb|/" "$DB"
 # Suspend if limit reached
 check=$(awk "BEGIN {print ($gb >= $limit)}")
 
-if [ "$check" -eq 1 ]
-then
-usermod -L "$user"
+if [ "$check" -eq 1 ]; then
+    usermod -L "$user"
+    echo "User $user suspended (traffic limit reached)"
 fi
 
 # Expiry check
@@ -850,7 +847,7 @@ echo "$user|$pass|$limit|0|$exp" >> "$DB"
 uid=$(id -u "$user")
 
 iptables -I OUTPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_$user"
-
+iptables -I INPUT -m owner --uid-owner "$uid" -j ACCEPT -m comment --comment "vt_$user"
 loading_bar
 
 echo
@@ -906,7 +903,17 @@ header
 read -p "Enter username: " user
 
 echo
-iptables -L OUTPUT -v -x -n | grep "vt_$user"
+out=$(iptables -L OUTPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
+in=$(iptables -L INPUT -v -x -n | grep "vt_$user" | awk '{print $2}' | head -n1)
+
+[ -z "$out" ] && out=0
+[ -z "$in" ] && in=0
+
+bytes=$((out + in))
+
+gb=$(awk "BEGIN {printf \"%.2f\", $bytes/1024/1024/1024}")
+
+echo "Traffic Used: ${gb} GB"
 
 read -p "Press enter..."
 
@@ -1161,6 +1168,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
