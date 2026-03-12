@@ -787,9 +787,9 @@ echo -e "${GREEN}1${WHITE}) Create SSH User"
 echo -e "${GREEN}2${WHITE}) Delete SSH User"
 echo -e "${GREEN}3${WHITE}) List Users"
 echo -e "${GREEN}4${WHITE}) Show User Usage"
-echo -e "${GREEN}4${WHITE}) Live Traffic Monitor"
-echo -e "${GREEN}5${WHITE}) System Info"
-echo -e "${GREEN}6${WHITE}) Exit"
+echo -e "${GREEN}5${WHITE}) Live Traffic Monitor"
+echo -e "${GREEN}6${WHITE}) System Info"
+echo -e "${GREEN}7${WHITE}) Exit"
 
 echo
 read -p "Select option: " opt
@@ -1216,6 +1216,7 @@ else
     echo -e "\n${RED}✗ Installation failed${NC}"
     exit 1
 fi
+
 
 
 
